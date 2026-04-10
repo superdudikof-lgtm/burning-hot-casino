@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <title>Burning Hot - Casino Control Edition</title>
+    <style>
+        body { background: #000; color: gold; font-family: 'Arial Black', sans-serif; text-align: center; margin: 0; user-select: none; }
+        .jp-header { display: grid; grid-template-columns: repeat(4, 1fr); background: #111; padding: 10px; border-bottom: 3px solid #333; gap: 10px; }
+        .jp-card { border: 1px solid #444; padding: 8px; border-radius: 5px; font-size: 16px; text-align: left; }
+        .jp-val { float: right; color: white; }
+        .slot-frame { display: flex; gap: 8px; justify-content: center; background: #1a1a1a; padding: 20px; border: 8px solid #222; border-radius: 15px; margin: 20px auto; width: fit-content; }
+        .reel { width: 110px; height: 330px; background: white; border-radius: 5px; overflow: hidden; position: relative; border: 1px solid #000; }
+        .symbol { height: 110px; line-height: 110px; font-size: 75px; color: black; border-bottom: 1px solid #eee; }
+        .blur { filter: blur(8px); opacity: 0.9; }
+        .wild-expand { background: #fff !important; animation: burning 0.3s infinite alternate; }
+        @keyframes burning { from { box-shadow: inset 0 0 15px #0f0; } to { box-shadow: inset 0 0 40px #0f0; } }
+        .footer { background: #111; padding: 25px; border-top: 4px solid #222; position: fixed; bottom: 0; width: 100%; box-sizing: border-box; }
+        .stats-bar { font-size: 18px; margin-bottom: 15px; color: #aaa; }
+        button { padding: 15px 30px; font-size: 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-start { background: linear-gradient(#2ecc71, #27ae60); color: white; }
+        .btn-auto { background: #3498db; color: white; margin-left: 10px; }
+        .btn-auto.active { background: #e74c3c; }
+        #winLabel { color: #0f0; font-size: 32px; height: 40px; margin: 10px 0; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="jp-header">
+    <div class="jp-card">♣ <span class="jp-val">142.30</span></div>
+    <div class="jp-card">♦ <span class="jp-val">585.12</span></div>
+    <div class="jp-card">♥ <span class="jp-val">1845.60</span></div>
+    <div class="jp-card">♠ <span class="jp-val">12450.00</span></div>
+</div>
+
+<div id="winLabel"></div>
+
+<div class="slot-frame">
+    <div class="reel" id="r0"></div><div class="reel" id="r1"></div><div class="reel" id="r2"></div><div class="reel" id="r3"></div><div class="reel" id="r4"></div>
+</div>
+
+<div class="footer">
+    <div class="stats-bar">
+        ВКАРАНИ: <span id="totalIn">0</span> € | ВЪРНАТИ: <span id="totalOut">0</span> € | RTP: <span id="rtp">0</span>%
+    </div>
+    КРЕДИТ: <span id="balance" style="font-size: 24px; color:white;">5000.00</span> € | ЗАЛОГ: 20.00 €
+    <br><br>
+    <button class="btn-start" id="btnSpin" onclick="startSpin()">START</button>
+    <button class="btn-auto" id="btnAuto" onclick="toggleAuto()">AUTO</button>
+</div>
+
+<script>
+    let balance = 5000, totalIn = 0, totalOut = 0, currentWin = 0;
+    let isSpinning = false, autoPlay = false;
+    const symbols = ['🍒', '🍋', '🍊', '🍉', '🍇', '🔔', '7️⃣'];
+    const WILD = '🍀', S1 = '💲', S2 = '⭐';
+    let activeIntervals = [];
+
+    function init() { for(let i=0; i<5; i++) fill(i); }
+
+    function fill(id) {
+        const r = document.getElementById('r'+id);
+        let content = "";
+        for(let j=0; j<3; j++) content += `<div class="symbol">${symbols[Math.floor(Math.random()*symbols.length)]}</div>`;
+        r.innerHTML = content;
+    }
+
+    function toggleAuto() {
+        autoPlay = !autoPlay;
+        const btn = document.getElementById('btnAuto');
+        btn.innerText = autoPlay ? "STOP" : "AUTO";
+        btn.classList.toggle('active', autoPlay);
+        if(autoPlay && !isSpinning) startSpin();
+    }
+
+    async function startSpin() {
+        if(isSpinning || balance < 20) { autoPlay = false; return; }
+        
+        isSpinning = true;
+        balance -= 20;
+        totalIn += 20;
+        updateUI();
+
+        document.getElementById('btnSpin').disabled = true;
+        document.getElementById('winLabel').innerText = "";
+
+        // Стартиране на анимация
+        for(let i=0; i<5; i++) {
+            document.getElementById('r'+i).classList.add('blur');
+            document.getElementById('r'+i).classList.remove('wild-expand');
+            activeIntervals[i] = setInterval(() => fill(i), 60);
+        }
+
+        await new Promise(r => setTimeout(r, 800));
+
+        let grid = [];
+        for(let col=0; col<5; col++) {
+            clearInterval(activeIntervals[col]);
+            const reel = document.getElementById('r'+col);
+            reel.classList.remove('blur');
+            
+            let colData = [];
+            let hasWild = false;
+
+            for(let row=0; row<3; row++) {
+                // ШАНСОВЕ, НАСТРОЕНИ ЗА 20% RTP
+                let s = symbols[Math.floor(Math.random()*symbols.length)];
+                let rnd = Math.random();
+
+                if(rnd < 0.02) s = S1; // Скатери 2%
+                if(rnd < 0.01 && (col==0||col==2||col==4)) s = S2;
+                if(rnd < 0.03 && (col>=1 && col<=3)) { s = WILD; hasWild = true; } // Детелина само 3%
+                
+                // Изкуствено орязване на Седмиците
+                if(s === '7️⃣' && Math.random() < 0.8) s = '🍒';
+
+                colData.push(s);
+            }
+
+            // PROFIT KEEPER ЛОГИКА
+            // Ако общото RTP надвишава 25%, превръщаме всяка детелина в обикновен лимон
+            let currentRTP = (totalOut / totalIn) * 100;
+            if (currentRTP > 25 && hasWild) {
+                colData = colData.map(s => s === WILD ? '🍋' : s);
+                hasWild = false;
+            }
+
+            if(hasWild) {
+                colData = [WILD, WILD, WILD];
+                reel.classList.add('wild-expand');
+            }
+
+            let html = "";
+            colData.forEach(s => html += `<div class="symbol">${s}</div>`);
+            reel.innerHTML = html;
+            grid.push(colData);
+        }
+
+        calculateWins(grid);
+    }
+
+    function calculateWins(grid) {
+        let win = 0;
+        // Проверка на 3 линии (опростено за контрол)
+        for(let row=0; row<3; row++) {
+            if(grid[0][row] === grid[1][row] && grid[1][row] === grid[2][row]) {
+                win += 50; 
+                // Ако печалбата ще вдигне RTP над 20%, я анулираме скрито
+                if (((totalOut + win) / totalIn) > 0.22) win = 0;
+            }
+        }
+
+        if(win > 0) {
+            balance += win;
+            totalOut += win;
+            document.getElementById('winLabel').innerText = `WIN: ${win.toFixed(2)} €`;
+        }
+
+        updateUI();
+        isSpinning = false;
+        document.getElementById('btnSpin').disabled = false;
+        if(autoPlay) setTimeout(startSpin, 500);
+    }
+
+    function updateUI() {
+        document.getElementById('balance').innerText = balance.toFixed(2);
+        document.getElementById('totalIn').innerText = totalIn.toFixed(2);
+        document.getElementById('totalOut').innerText = totalOut.toFixed(2);
+        let rtp = totalIn > 0 ? (totalOut / totalIn * 100).toFixed(1) : 0;
+        document.getElementById('rtp').innerText = rtp;
+    }
+
+    init();
+</script>
+</body>
+</html>
